@@ -21,7 +21,6 @@ Vagrant.configure("2") do |config|
     chown vagrant:vagrant /home/vagrant/.ssh/authorized_keys
   SHELL
 
-  # Настройка PolKit, ACL, iptables, chroot и debootstrap
   config.vm.provision "shell", inline: <<-SHELL
     # Установка переменной окружения для предотвращения интерактивных запросов
     export DEBIAN_FRONTEND=noninteractive
