@@ -1,0 +1,149 @@
+Vagrant.configure("2") do |config|
+  # Используем образ Debian 12
+  config.vm.box = "generic/debian12"
+
+  # Настройка hostname
+  config.vm.hostname = "OS-security"
+  
+  # Настройки VMware
+  config.vm.provider "vmware_desktop" do |vmware|
+    vmware.vmx["memsize"] = "4096"
+    vmware.vmx["numvcpus"] = "4"
+    vmware.vmx["ethernet0.natdnshostresolver1"] = "true"
+    vmware.vmx["ethernet0.natdnsproxy1"] = "true"
+  end  # Закрываем блок provider
+
+  # Проброс SSH-ключа
+  config.vm.provision "shell", inline: <<-SHELL
+    mkdir -p /home/vagrant/.ssh
+    echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCp7eiRguHxbdpYwnGkHoC78QFQMDVfitoJhvpbQgvcU7PWAd3eb0yVULZH9+LDBPZDQLX7E1dus3aJWdR0/jB62uBgtD90oEbdVcoRBydYbY9GVEnnfN9fimPU9vyHyt6MR2Hgpr+1BCKK8AOiXobYB/b2mVdGaeHVt7KcrV+hH7X8hvsjm/LEYxY3ZQGp+/wbKMHXib8XmJNlENIcthvL4xJU2gAC2ydyCa3U86S5zFv/02FmbfquopK3zPwK2uJuv6JKVoCE7MvlEkLtuOOIk6fFcxDIP8xvezD9Qd2XAjkQDIt6sxtWHOwsxdbIsp1CBtIAKdbvoA8vB2O5WkFMNp37oB0dNRcx3PgL/cJJJSYX1TW1mL5VMP7hkxkhNm5JHptbMx49xl0F8uKSS0CTQKUbBM7c0KH3X3laJvC3v3b2cT9bB4762BHC1WsxkS+IvAG6wt8j6xpXKQnHRxRtlcdhVXMsXlL1br94RIJqCllAbgxJz/zpmkF8xprlgQk= gkhly@DESKTOP-3INKQHN" >> /home/vagrant/.ssh/authorized_keys
+    chmod 600 /home/vagrant/.ssh/authorized_keys
+    chown vagrant:vagrant /home/vagrant/.ssh/authorized_keys
+  SHELL
+
+  # Настройка PolKit, ACL, iptables, chroot и debootstrap
+  config.vm.provision "shell", inline: <<-SHELL
+    # Установка переменной окружения для предотвращения интерактивных запросов
+    export DEBIAN_FRONTEND=noninteractive
+	
+	# Обновляем систему и устанавливаем необходимые пакеты
+    sudo apt-get update
+    sudo apt-get upgrade -y --fix-missing
+
+    # Задание №1: Создание директории, группы и пользователей
+  config.vm.provision "shell", inline: <<-SHELL
+    # Создание группы 'company' с GID 10000
+    sudo groupadd -g 10000 company
+
+    # Создание директории /home/company
+    sudo mkdir -p /home/company
+    sudo chown root:company /home/company
+    sudo chmod 2770 /home/company
+
+    # Создание групп для управления доступом
+    sudo groupadd -f sysadmin
+    sudo groupadd -f helpdesk
+    sudo groupadd -f netadmin
+
+    # Создание пользователей
+
+    ## Пользователь: sysadmin
+    sudo useradd -m -d /home/company/sysadmin -s /bin/bash -g sysadmin -G company, sudo -u 10101 sysadmin
+    echo "sysadmin:password1" | sudo chpasswd
+
+    ## Пользователь: helpdesk
+    sudo useradd -m -d /home/company/helpdesk -s /bin/sh -g helpdesk -G company -u 10201 helpdesk
+    echo "helpdesk:password2" | sudo chpasswd
+
+    ## Пользователь: netadmin
+    sudo useradd -m -d /home/company/netadmin -s /bin/bash -g netadmin -G company -u 10301 netadmin
+    echo "netadmin:password3" | sudo chpasswd
+  SHELL
+
+  # Задание №2: Настройка прав пользователей
+  config.vm.provision "shell", inline: <<-SHELL
+    # Настройка прав доступа
+
+    ## 1. Предоставить sysadmin все права на систему
+    sudo usermod -aG sudo sysadmin
+
+    ## 2. Предоставить netadmin возможность запускать nmtui от имени суперпользователя без запроса пароля
+    echo "netadmin ALL=(ALL) NOPASSWD: /usr/bin/nmtui" | sudo tee /etc/sudoers.d/netadmin_nmtui
+    sudo chmod 440 /etc/sudoers.d/netadmin_nmtui
+
+    ## 3. Предоставить helpdesk возможность менять пароли всех пользователей кроме sysadmin и root
+    # Создаём скрипт, который позволяет helpdesk менять пароли
+    sudo tee /usr/local/bin/helpdesk_chpasswd.sh > /dev/null <<'EOF'
+	#!/bin/bash
+	if [[ "$1" == "sysadmin" || "$1" == "root" ]]; then
+		echo "Permission denied."
+		exit 1
+	else
+		sudo passwd "$1"
+	fi
+EOF
+    sudo chmod +x /usr/local/bin/helpdesk_chpasswd.sh
+
+    # Добавляем в sudoers правило для helpdesk
+    echo "helpdesk ALL=(ALL) NOPASSWD: /usr/local/bin/helpdesk_chpasswd.sh" | sudo tee /etc/sudoers.d/helpdesk_chpasswd
+    sudo chmod 440 /etc/sudoers.d/helpdesk_chpasswd
+  SHELL
+
+  # Задание №3: Создание групп, пользователей и настройка доступа
+config.vm.provision "shell", inline: <<-SHELL
+
+    # Создание дополнительных групп
+    sudo groupadd -f marketing
+    sudo groupadd -f sales
+    sudo groupadd -f it
+    sudo groupadd -f manager
+    sudo groupadd -f admin
+    sudo groupadd -f helpdesk_group  # Избегаем конфликта с уже существующей группой helpdesk
+
+    # Создание директорий для групп
+    sudo mkdir -p /home/marketing
+    sudo mkdir -p /home/sales
+    sudo mkdir -p /home/it
+
+    sudo chown root:marketing /home/marketing
+    sudo chown root:sales /home/sales
+    sudo chown root:it /home/it
+
+    sudo chmod 2770 /home/marketing
+    sudo chmod 2770 /home/sales
+    sudo chmod 2770 /home/it
+
+    # Создание пользователей для группы marketing
+    ## Пользователь: marketing_user
+    sudo useradd -m -d /home/marketing -s /usr/sbin/nologin -g marketing -G user -u 20001 marketing_user
+    echo "marketing_user:password4" | sudo chpasswd
+    sudo chown marketing_user:marketing /home/marketing
+
+    ## Пользователь: marketing_manager
+    sudo useradd -m -d /home/marketing/manager1 -s /bin/bash -g marketing -G manager -u 20002 marketing_manager
+    echo "marketing_manager:password5" | sudo chpasswd
+    sudo chown marketing_manager:marketing /home/marketing/manager1
+
+    # Создание пользователей для группы sales
+    ## Пользователь: sales_user
+    sudo useradd -m -d /home/sales -s /usr/sbin/nologin -g sales -G user -u 20003 sales_user
+    echo "sales_user:password6" | sudo chpasswd
+    sudo chown sales_user:sales /home/sales
+
+    ## Пользователь: sales_manager
+    sudo useradd -m -d /home/sales/manager2 -s /bin/bash -g sales -G manager -u 20004 sales_manager
+    echo "sales_manager:password7" | sudo chpasswd
+    sudo chown sales_manager:sales /home/sales/manager2
+
+    # Создание пользователей для группы it
+    ## Пользователь: it_admin
+    sudo useradd -m -d /home/it/admin -s /bin/bash -g it -G admin -u 20005 it_admin
+    echo "it_admin:password8" | sudo chpasswd
+    sudo chown it_admin:it /home/it/admin
+
+    ## Пользователь: it_helpdesk
+    sudo useradd -m -d /home/it/helpdesk -s /usr/sbin/nologin -g it -G helpdesk_group -u 20006 it_helpdesk
+    echo "it_helpdesk:password9" | sudo chpasswd
+    sudo chown it_helpdesk:it /home/it/helpdesk
+  SHELL
+end
