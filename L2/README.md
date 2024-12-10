@@ -10,7 +10,8 @@
    ssh -i id_rsa(у меня было без расширения, но там есть ещие .ppk) vagrant@ip машины
    
 5. Выполнить обновление и апгрейд пакетов вашего дистрибутива
-   apt-get update && apt-get upgrade -y --fix-missing
-   
+   sudo apt-get update && apt-get upgrade -y --fix-missing
+   [29-30](Vagrantfile)
    
 7. Выполнить установку пакета nginx
+   sudo apt-get install nginx
