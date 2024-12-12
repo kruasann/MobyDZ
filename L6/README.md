@@ -79,17 +79,27 @@
 
 1. Зайдите в rescue.target, посмотрите содержимое fstab, после чего вернитесь в graphical.target. 
    В вагранте не получается(скорее всего из-за графического интерфейса, поэтому это сделаю в кали)
+
    ![image](https://github.com/user-attachments/assets/a2be0c4d-b730-450a-9a3d-567a23dac38f)
+
    ![image](https://github.com/user-attachments/assets/4dc06f34-41eb-4ee6-9754-78e84ceb7e79)
+
    или через редактор nano
+
    ![image](https://github.com/user-attachments/assets/e19f36e4-4b72-407d-8ab3-47c2a7f9243e)
+
    ![image](https://github.com/user-attachments/assets/be118481-f486-41a6-a3b0-4487466ceeb1)
+
    И возвращаемся в graphical.target
+
    ![image](https://github.com/user-attachments/assets/4ffa2c00-510e-4b8b-9de3-51f9bb750e36)
    
 2. Сделайте multi-user.target режимом по умолчанию.
+  
    ![image](https://github.com/user-attachments/assets/7323cdc1-2eb1-40a5-991a-c649a3ddbdb0)
+
    Проверка
+
    ![image](https://github.com/user-attachments/assets/de373c42-ce77-4838-bdc6-35f54f6a6a5e)
 
 
