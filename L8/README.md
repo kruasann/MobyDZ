@@ -54,7 +54,39 @@
 
 2. Сделайте пользователя user2 администратором системы. (sudoers)
 
-  
+   В sudoers даем права пользователю user2, чтобы была возможность выполнять любые команды от имени любого пользователя
+   
+   ![image](https://github.com/user-attachments/assets/e379ed34-c0cc-4fe8-882a-876fcf78a4c2)
+
+   Провеирм, если user2 является администратором, то **sudo whoami** вернет **root**
+
+   ![image](https://github.com/user-attachments/assets/f6468e21-94a9-4c41-975d-5e3b7e937992)
+
+    
 3. Разрешите пользователю user1 запускать команду ls от пользователя user2. (sudoers)
+
+   В sudoers даем права пользователю user2, чтобы была возможность запускать команду ls от имени пользователя user2
+   
+   ![image](https://github.com/user-attachments/assets/516222c2-f3a5-4364-ae3d-1a3cb6d9c5dd)
+
+   Проверка связи
+
+   ![image](https://github.com/user-attachments/assets/68632584-1378-400b-b873-9576bd985a0e)
+
+
 4. Создайте группу пользователей из user1 / user2 / user3, затем дайте участникам группы разрешение на обновление базы данных `apt` и выключение системы. (sudoers)
 
+   Создаем группу и добавляем туде юзеров
+   
+   ![image](https://github.com/user-attachments/assets/c35df6ea-4b35-4423-a317-330a19a93c5e)
+
+   Теперь в sudoers разрешаем этим юзерам обновлять бд apt и выключать систему
+
+   ![image](https://github.com/user-attachments/assets/a60b559d-087c-4d82-ab26-c19ce0009851)
+
+   Проверка
+
+   ![image](https://github.com/user-attachments/assets/960d0fa7-4945-4f9d-90bd-99ab8659729c)
+
+
+   
