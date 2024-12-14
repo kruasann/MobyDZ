@@ -1,0 +1,51 @@
+#!/bin/bash
+
+update_system() {
+    echo "Обновление системы..."
+    sudo apt update && sudo apt upgrade -y && sudo apt dist-upgrade -y
+}
+
+update_grub_kernel_params() {
+    echo "Обновление параметров защиты ядра в GRUB..."
+    sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="[^"]*/GRUB_CMDLINE_LINUX_DEFAULT="spectre_v2=on pti=on spectre_bhi=on mds=on"/' /etc/default/grub
+    sudo update-grub
+}
+
+reboot_system() {
+    echo "Перезагрузка системы..."
+    sudo reboot
+}
+
+check_security() {
+    echo "Установка и проверка состояния безопасности..."
+
+    # Установка утилиты для проверки Spectre и Meltdown
+    sudo apt install -y spectre-meltdown-checker
+
+    # Запуск проверки состояния безопасности
+    sudo spectre-meltdown-checker
+}
+
+enable_automatic_updates() {
+    echo "Настройка автоматических обновлений безопасности..."
+    sudo apt install -y unattended-upgrades
+    sudo dpkg-reconfigure --priority=low unattended-upgrades
+}
+
+setup_security_check_cron() {
+    echo "Настройка регулярной проверки состояния безопасности..."
+    (sudo crontab -l; echo "0 0 * * 0 /usr/bin/spectre-meltdown-checker") | sudo crontab -
+}
+
+setup_auto_update_cron() {
+    echo "Настройка cron задачи для автоматических обновлений..."
+    (sudo crontab -l; echo "0 3 * * * apt update && apt upgrade -y && apt dist-upgrade -y") | sudo crontab -
+}
+
+update_system
+update_grub_kernel_params
+check_security
+enable_automatic_updates
+setup_security_check_cron
+setup_auto_update_cron
+reboot_system
