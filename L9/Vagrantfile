@@ -21,7 +21,6 @@ Vagrant.configure("2") do |config|
     chown vagrant:vagrant /home/vagrant/.ssh/authorized_keys
   SHELL
 
-  # Настройка PolKit, ACL, iptables, chroot и debootstrap
   config.vm.provision "shell", inline: <<-SHELL
     # Установка переменной окружения для предотвращения интерактивных запросов
     export DEBIAN_FRONTEND=noninteractive
@@ -37,82 +36,216 @@ Vagrant.configure("2") do |config|
     sudo apt-get update
     sudo apt-get upgrade -y --fix-missing
     sudo apt-get install -y acl iptables-persistent nginx debootstrap policykit-1 postfix network-manager packagekit
-
-    # PolKit правила
-    
-    # Разрешаем изменение NetworkManager только для root
-    echo 'polkit.addRule(function(action, subject) {
-      if (action.id == "org.freedesktop.NetworkManager.*" &&
-          subject.isInGroup("root")) {
-        return polkit.Result.YES;
-      }
-      return polkit.Result.NO;
-    });' | sudo tee /etc/polkit-1/rules.d/50-network-manager.rules
-    
-    # Разрешаем пользователям обновлять систему и устанавливать/удалять программы
-    echo 'polkit.addRule(function(action, subject) {
-		var allowedActions = [
-			"org.debian.apt.update-cache",
-			"org.debian.apt.upgrade-packages",
-			"org.debian.apt.install-or-remove-packages"
-		];
-
-		if (allowedActions.indexOf(action.id) >= 0) {
-			return polkit.Result.YES;
-		}
-	});' | sudo tee /etc/polkit-1/rules.d/50-package-management.rules
-
-    # ACL: Запрещаем группе user доступ к файлам
-    sudo groupadd -f user
-	mkdir /home/Denied_Dir
-	TARGET_DIR="/home/Denied_Dir"
 	
-    # Проверка поддержки ACL на файловой системе
-    if mount | grep " ${TARGET_DIR} " | grep -q "acl"; then
-        echo "ACL уже включены на ${TARGET_DIR}"
-    else
-        # Добавление опции acl в /etc/fstab для соответствующей точки монтирования
-        # Определяем устройство и точку монтирования
-        DEVICE=$(mount | grep " ${TARGET_DIR} " | awk '{print $1}')
-        sudo sed -i "/${DEVICE}/ s/defaults/defaults,acl/" /etc/fstab
+	# Задание 1
+	
+	# Создаем группы
+	sudo groupadd it
+	sudo groupadd sales
+	sudo groupadd company
+	
+	# Создаем директории
+	sudo mkdir -p /company/it /company/sales /company/shared
+	
+	# Создаем пользователей
+	sudo useradd -m -s /bin/bash -g company -G it ituser1
+	sudo useradd -m -s /bin/bash -g company -G it ituser2
+	sudo useradd -m -s /bin/bash -g company -G it itadmin
+	
+	sudo useradd -m -s /sin/sh -g company -G sales suser1
+	sudo useradd -m -s /sin/sh -g company -G sales suser2
+	sudo useradd -m -s /sin/sh -g company -G sales sadmin
+	
+	# Настраиваем права доступа
+	sudo chmod 770 /company/it
+	sudo chown root:it /company/it
+	
+	sudo chmod 770 /company/sales
+	sudo chown root:sales /company/sales
+	
+	# Все пользователи могут видеть /company/shared
+	sudo chmod 755 /company/shared
+	
+	# Создание файлов в shared
+    sudo touch /company/shared/ituser1
+    sudo touch /company/shared/ituser2
+    sudo touch /company/shared/itadmin
+    sudo touch /company/shared/suser1
+    sudo touch /company/shared/suser2
+    sudo touch /company/shared/sadmin
+	
+	# Задание 2
+	
+	# Создаем группы
+	sudo groupadd academy
+	sudo groupadd teachers
+	sudo groupadd students
+	sudo groupadd staff
+	
+	# Создаем директории
+	sudo mkdir -p /academy/students /academy/teachers /academy/staff
+	sudo mkdir -p /academy/secret
+	
+	# Создаем пользователей
+	sudo useradd -m -s /bin/bash -g students student
+	sudo useradd -m -s /bin/bash -g teachers teacher
+	
+	# Домашняя директория для студентов
+	sudo mkdir /academy/students/student
+	sudo chown student:students /academy/students/student
+	
+	# Домашняя директория для учителей
+	sudo mkdir /academy/teachers/teacher
+	sudo chown teacher:teachers /academy/teachers/teacher
+	
+	# Настройка прав доступа для студентов
+    sudo chmod 750 /academy/students
+    sudo chmod 750 /academy/teachers
+    sudo chmod 750 /academy/staff
+    sudo chmod 755 /academy/secret
+	
+	# Настройка доступа для группы staff
+    sudo setfacl -m g:staff:rwx /academy/students
+    sudo setfacl -m g:staff:rwx /academy/teachers
 
-        # Перемонтирование с поддержкой ACL
-        sudo mount -o remount,acl ${TARGET_DIR}
-    fi
+    # Разрешение на создание файлов в /academy/secret
+    sudo setfacl -m g:teachers:rw /academy/secret
+    sudo setfacl -m g:staff:rw /academy/secret
 
-    # Применение ACL рекурсивно
-    sudo setfacl -R -m g:user:--- ${TARGET_DIR}
+    # Файл top_secret в /academy/secret
+    sudo touch /academy/secret/top_secret
+    sudo chattr +i /academy/secret/top_secret
 
-    # Установка дефолтных ACL для новых файлов и директорий
-    sudo setfacl -R -m d:g:user:--- ${TARGET_DIR}
+    # Разрешение на создание файлов
+    sudo setfacl -m g:teachers:rw /academy/secret
+    sudo setfacl -m g:staff:rw /academy/secret
 
-    # iptables: Настройка правил
-    sudo iptables -A INPUT -i lo -j ACCEPT # Разрешаем localhost
-    sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT # Разрешаем SSH
-    sudo iptables -A INPUT -p tcp --dport 80 -j DROP # Запрещаем HTTP
-    sudo iptables -A INPUT -p tcp -s 10.210.19.0/24 --dport 443 -j ACCEPT # HTTPS для локальной сети
-    sudo iptables -A INPUT -p tcp -s 10.210.19.0/24 --dport 8080 -j ACCEPT # Порт 8080 для локальной сети
-    sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE # NAT
-    
-    # Сохраняем iptables
-    sudo netfilter-persistent save
+    # Разрешение на удаление файлов от имени группы учителей
+    sudo visudo -f /etc/sudoers.d/students_teachers << EOF
+    %students ALL=(%teachers) NOPASSWD: /bin/rm /academy/secret/*
+    EOF
+	
+	# Задание 3
+	
+	# Создаем директории
+	sudo mkdir -p /home/company/homedirs /home/company/sales /home/company/marketing /home/company/shared
+	
+	# Создаем группы
+	sudo groupadd company2
+	sudo groupadd sales2
+	sudo groupadd marketing2
+	
+	# Создаем пользователей
+	sudo useradd -m -s /bin/bash -g sales2 -G company2 mike
+	sudo useradd -m -s /bin/bash -g marketing2 -G company2 john
+	
+	# Настройка прав доступа
+	
+    # Директория /home/company/homedirs для пользователей
+    sudo mkdir /home/company/homedirs/mike
+    sudo mkdir /home/company/homedirs/john
+    sudo chown mike:sales /home/company/homedirs/mike
+    sudo chown john:marketing /home/company/homedirs/john
 
-    # chroot и debootstrap
-    sudo mkdir -p /srv/chroot
-    sudo debootstrap --variant=minbase stable /srv/chroot http://deb.debian.org/debian/
-    
-    # Настраиваем chroot окружение
-    sudo mount --bind /dev /srv/chroot/dev
-    sudo mount --bind /proc /srv/chroot/proc
-    sudo mount --bind /sys /srv/chroot/sys
+	# Директория /home/company/sales для группы sales
+    sudo chown root:sales2 /home/company/sales
+    sudo chmod 770 /home/company/sales
 
-    # Входим в chroot и устанавливаем nginx
-    sudo chroot /srv/chroot /bin/bash -c "apt-get update && apt-get install -y nginx"
+    # Директория /home/company/marketing для группы marketing
+    sudo chown root:marketing2 /home/company/marketing
+    sudo chmod 770 /home/company/marketing
 
-    # Запускаем nginx в chroot
-    sudo chroot /srv/chroot /bin/bash -c "service nginx start"
+    # Директория /home/company/shared для общей группы company
+    sudo chown root:company2 /home/company/shared
+    sudo chmod 2770 /home/company/shared
+    sudo setfacl -m d:g:company2:rwx /home/company/shared
+    sudo setfacl -m g:company2:rwx /home/company/shared
+	
+	# Задание 4
+	
+    # Создание директорий внутри /data
+    sudo mkdir -p /data/marketing /data/sales /data/it
 
-	# Тестирование веб-приложения в chroot
-    curl http://localhost
+    # Создание групп
+    sudo groupadd marketing3
+    sudo groupadd sales3
+    sudo groupadd it3
+
+    # Создание пользователей
+    sudo useradd -m -s /bin/bash -g marketing3 user.marketing
+    sudo useradd -m -s /bin/bash -g sales3 user.sales
+    sudo useradd -m -s /bin/bash admin
+    sudo useradd -m -s /bin/bash backup
+
+    # Настройка прав доступа для директорий
+    sudo chown user.marketing:marketing3 /data/marketing
+    sudo chown user.sales:sales3 /data/sales
+    sudo chown admin:admin /data/it
+    sudo chmod 700 /data/marketing /data/sales /data/it
+
+    # Настройка прав для admin full
+    sudo setfacl -m u:admin:rwx /data/marketing
+    sudo setfacl -m u:admin:rwx /data/sales
+    sudo setfacl -m u:admin:rwx /data/it
+
+    # Настройка прав для backup read-only
+    sudo setfacl -m u:backup:rx /data/marketing
+    sudo setfacl -m u:backup:rx /data/sales
+    sudo setfacl -m u:backup:rx /data/it
+	
+	# Задание 5
+	
+    # Создание директории /company2
+    sudo mkdir /company2
+    sudo chown root:company /company2
+    sudo chmod 770 /company2
+
+    # Настройка маски для группы, чтобы все создаваемые файлы имели группу company
+    sudo chmod g+s /company2
+
+    # Проверка прав доступа для /company
+    ls -ld /company2
+	
+	# Задание 6 (ACL)
+	
+	# Создаем группу developers
+	sudo groupadd developers
+	
+    # Создание файла testfile.txt в домашнем каталоге
+    touch ~/testfile.txt
+
+    # Установка ACL для пользователя john с правами на чтение
+    sudo setfacl -m u:john:r-- ~/testfile.txt
+
+    # Проверка ACL на файле
+    getfacl ~/testfile.txt
+
+    # Создание директории testdir
+    mkdir ~/testdir
+
+    # Установка ACL для директории testdir для группы developers
+    sudo setfacl -m g:developers:rwx ~/testdir
+    # Установка наследования прав
+    sudo setfacl -d -m g:developers:rwx ~/testdir
+
+    # Создание файла и директории внутри testdir для проверки наследования прав
+    touch ~/testdir/testfile_inside
+    mkdir ~/testdir/testdir_inside
+
+    # Изменение прав для пользователя john на файле testfile.txt (право на запись)
+    sudo setfacl -m u:john:rw ~/testfile.txt
+    # Проверка изменений с помощью getfacl
+    getfacl ~/testfile.txt
+
+    # Удаление всех ACL с файла
+    sudo setfacl -b ~/testfile.txt
+    # Проверка после удаления ACL
+    getfacl ~/testfile.txt
+
+    # Пример с масками ACL
+    sudo setfacl -m m::r-- ~/testdir
+    sudo setfacl -m u:john:rwx ~/testdir/testfile_inside
+    getfacl ~/testdir/testfile_inside
+	
   SHELL
   end
