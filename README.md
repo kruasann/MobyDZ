@@ -1,4 +1,4 @@
-# Домашка Вовы
+# Домашка Вовы ♥
 
 [Лекция 2](https://github.com/kruasann/MobyDZ/edit/main/L2)
 
