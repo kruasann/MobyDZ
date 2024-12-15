@@ -1,0 +1,21 @@
+#!/bin/bash
+
+if [ $# -ne 2 ]; then
+	echo "Using: $0 <time(sec)> <total(sec)>"
+	exit 1
+fi
+
+starttime=$(date +%s)
+endtime=$((starttime + $2))
+
+while [ $(date +%s) -le $endtime ]; do
+	currtime=$(date +%s)
+	elapsedtime=$((currtime - starttime))
+	remaintime=$((endtime - currtime))
+
+	echo "Elapsed time: $elapsedtime seconds, remaining: $remaintime seconds"
+
+	sleep 1
+done
+
+echo "Timer stopped"
